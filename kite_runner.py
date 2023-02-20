@@ -4,7 +4,6 @@ import json
 import math
 import kite_connect
 import sys
-from time import sleep
 from operator import itemgetter
 from signal import signal, SIGPIPE, SIG_DFL
 
@@ -19,7 +18,7 @@ def myprint(*args):
 def get_client_order_id():
     return "IRIS-{timestamp}".format(timestamp=round(time.time() * 1000))
 
-def straddle_order():
+def straddle_order(prefix):
 
     expiry = os.getenv("expiry")
     if expiry == None or expiry == "":
@@ -43,7 +42,7 @@ def straddle_order():
         return
 
 
-    instrument_prefix = "BANKNIFTY23"+expiry
+    instrument_prefix = prefix+expiry
 
     limit_price = 0.0
     order_type = client.ORDER_TYPE_MARKET
@@ -82,7 +81,7 @@ def straddle_order():
     myprint("------------------------------------------")
     myprint("\n")
 
-def place_order():
+def place_order(prefix):
     buy_order_type, sell_order_type = client.ORDER_TYPE_LIMIT, client.ORDER_TYPE_LIMIT
     expiry = os.getenv("expiry")
     if expiry == None or expiry == "":
@@ -94,7 +93,7 @@ def place_order():
         myprint("Bothinstrumentis cannot be empty, exiting!")
         return
 
-    instrument_prefix = "BANKNIFTY23"+expiry
+    instrument_prefix = prefix+expiry
 
     buy_limit_price, sell_limit_price = 0.0, 0.0
 
@@ -151,13 +150,18 @@ def place_order():
 
 
 def place_order_kite(instrument, side, order_type, price, size):
-    num_orders = math.ceil(int(size) / 900)
+
+    if "BANK" in instrument:
+        single_max_order_size = 900
+    else:
+        single_max_order_size = 1800
+    num_orders = math.ceil(int(size) / single_max_order_size)
     quantity_left = int(size)
     orders = []
     failed_count = 0
     myprint("%s %s, %s %s, %s"% (instrument, side, order_type, price, size))
     while num_orders > 0:
-        order_size = int(min(900, quantity_left))
+        order_size = int(min(single_max_order_size, quantity_left))
         num_orders-=1
         quantity_left-=order_size
         order_response = client.place_order(
@@ -187,8 +191,8 @@ def place_order_kite(instrument, side, order_type, price, size):
     return num_orders, failed_count
 
 
-def close_all_positions(side):
-    open_positions = get_open_positions()
+def close_all_positions(positions, side):
+    open_positions = get_open_positions(positions)
     for p in open_positions:
         if side == "buy" and p['open_size'] < 0:
             continue
@@ -202,6 +206,8 @@ def close_all_positions(side):
             continue
         elif side == "CEsell" and ("PE" in p['instrument'] or p['open_size'] > 0):
             continue
+        print("######### Closing position in %s" % p["instrument"])
+        print(json.dumps(p, indent=4))
         close_side = client.TRANSACTION_TYPE_SELL if p['open_size'] > 0 else client.TRANSACTION_TYPE_BUY
         order_type = client.ORDER_TYPE_MARKET
         order_count, failed_count = place_order_kite(
@@ -210,73 +216,67 @@ def close_all_positions(side):
             price=0.0, size=abs(p['open_size']))
         myprint("%s orders placed to close position. order count: %d, failed: %d" % (close_side, order_count, failed_count))
         
-def get_open_positions():
-    positions_response = client.positions()
-    open_positions = []
-    for p in positions_response['net']:
-        if p["sell_quantity"] != p["buy_quantity"]:
-            open_position = {
-                "instrument": p['tradingsymbol'],
-                "buy_price": p['buy_price'],
-                "sell_price": p['sell_price'],
-                "buy_quantity": p['buy_quantity'],
-                "sell_quantity": p['sell_quantity'],
-                "open_size": p['buy_quantity'] - p['sell_quantity'],
-                "side": "buy" if p['buy_quantity'] > p['sell_quantity'] else "sell",
-                'pnl': p['m2m'],
-            }
-            open_positions.append(open_position)
-    open_positions = sorted(open_positions, key=itemgetter('side'), reverse=True)
-    return open_positions
+def pnl(entry_price, exit_price, size, side):
+    if side == "buy":
+        return (exit_price-entry_price)*size
+    return (entry_price - exit_price)*size
 
-def get_open_positions():
-    positions_response = client.positions()
-    open_positions = []
-    for p in positions_response['net']:
-        if p["sell_quantity"] != p["buy_quantity"]:
-            open_position = {
-                "instrument": p['tradingsymbol'],
-                "buy_price": p['buy_price'],
-                "sell_price": p['sell_price'],
-                "buy_quantity": p['buy_quantity'],
-                "sell_quantity": p['sell_quantity'],
-                "open_size": p['buy_quantity'] - p['sell_quantity'],
-                "side": "buy" if p['buy_quantity'] > p['sell_quantity'] else "sell",
-                'pnl': p['pnl'],
-            }
-            open_positions.append(open_position)
-    open_positions = sorted(open_positions, key=itemgetter('side'), reverse=True)
-    return open_positions
+def prepare_position_info(position_data, last_price):
+    position = {
+        "instrument": position_data["tradingsymbol"],
+        "entry_price": position_data["buy_price"] if position_data['buy_quantity'] > position_data['sell_quantity'] else position_data["sell_price"],
+        "exit_price": position_data["sell_price"] if position_data['buy_quantity'] > position_data['sell_quantity'] else position_data["buy_price"],
+        "side": "buy" if position_data['buy_quantity'] > position_data['sell_quantity'] else "sell",
+        "rpl": 0,
+        "upl": 0,
+        "open_size": position_data["quantity"],
+        "last_price": last_price
+    }
+    if position_data["sell_quantity"] > 0 and position_data["buy_quantity"] > 0:
+        position["rpl"] =  pnl(
+            float(position_data['buy_price']), 
+            float(position_data['sell_price']), 
+            abs(min(float(position_data['buy_quantity']), float(position_data['sell_quantity']))), 
+            "buy"
+        ) 
+    position["upl"] = pnl(
+        position['entry_price'], 
+        last_price, abs(position_data['quantity']), 
+        side=position["side"])
+    return position
+    
 
-def get_net_pnl(client):
-    positions = client.positions()
-    # print(json.dumps(positions, indent=4))
-    m2m =  sum(map(
-        lambda p: p["m2m"], positions["net"]
+def get_open_positions(positions):
+    return list(filter(
+        lambda p: p["open_size"] != 0, positions
     ))
-    pnl =  sum(map(
-        lambda p: p["value"], positions["net"]
-    ))
-    unl =  sum(map(
-        lambda p: p["unrealised"], positions["net"]
-    ))
-    print("m2m %f"%m2m)
-    print("value %f"%pnl)
-    print("upl %f"%unl)
-    print("DONEDONECONE================================================= ")
-    return sum(map(
-        lambda p: p["pnl"], positions["net"]
-    ))
+
+def get_todays_position_info():
+    positions_data = client.positions()
+    #print(positions_data)
+    positions = []
+    
+    ltp_data = client.ltp(list(map(lambda i: "NFO:"+i['tradingsymbol'], positions_data["net"])))
+    for p in positions_data["net"]:
+        trading_symbol = "NFO:"+p["tradingsymbol"]
+        if  trading_symbol not in ltp_data and p["quantity"] != 0:
+            print("failed to get ltp for %s, will fail to calculate unrealised pnl" % p["tradingsymbol"])
+            continue
+        positions.append(prepare_position_info(p, ltp_data[trading_symbol]["last_price"])) 
+    return positions
     
 def stop_loss_runner(sl_amount):
     while True:
-        client = kite_connect.KiteApp(enctoken=enctoken)
-        net_pnl = get_net_pnl(client)
+        positions = get_todays_position_info()
+        net_pnl = sum(map(
+            lambda p: p["upl"]+p["rpl"], positions
+        ))
+        
         myprint("Net PnL: %f" % net_pnl)
         if net_pnl < sl_amount:
-            myprint("Current PnL less than SL amount: %s, closing all positions" % sl_amount)
-            close_all_positions("")
-        time.sleep(1)
+            myprint("Stop limit reached. stop loss amount: %s, net pnl: %s, closing all positions" % (sl_amount, net_pnl))
+            close_all_positions(positions, "")
+        time.sleep(5)
 
 def main():
     command = os.getenv("command")
@@ -285,11 +285,21 @@ def main():
     if command != None and command != "":
         if command == "close_all":
             side = os.getenv("side")
-            close_all_positions(side=side)
+            positions = get_todays_position_info()
+            close_all_positions(positions, side=side)
         elif command == "place_order":
+            place_order("BANKNIFTY23")
+        elif command == "place_FN":
+            place_order("FINNIFTY23")
             place_order()
+        elif command == "place_N":
+            place_order("NIFTY23")
         elif command == "straddle":
-            straddle_order()
+            straddle_order("BANKNIFTY23")
+        elif command == "straddle_FN":
+            straddle_order("FINNIFTY23")
+        elif command == "straddle_N":
+            straddle_order("NIFTY23")
         elif command == "sl_runner":
             sl_amount = os.getenv("sl_amount")
             if sl_amount != None and sl_amount != "":
