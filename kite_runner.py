@@ -53,11 +53,17 @@ def straddle_order(prefix):
         return
 
     size = int(quantity.strip())
-    num_orders = math.ceil(int(size) / 900)
     quantity_left = int(size)
 
+    if "BANK" in instrument_prefix:
+        single_max_order_size = 900
+    else:
+        single_max_order_size = 1800
+
+    num_orders = math.ceil(int(size) / single_max_order_size)
+
     while num_orders > 0:
-        order_size = int(min(900, quantity_left))
+        order_size = int(min(single_max_order_size, quantity_left))
         num_orders-=1
         quantity_left-=order_size
 
@@ -119,10 +125,16 @@ def place_order(prefix):
         return
 
     size = int(quantity.strip())
-    num_orders = math.ceil(int(size) / 900)
     quantity_left = int(size)
+
+    if "BANK" in instrument_prefix:
+        single_max_order_size = 900
+    else:
+        single_max_order_size = 1800
+
+    num_orders = math.ceil(int(size) / single_max_order_size)
     while num_orders > 0:
-        order_size = int(min(900, quantity_left))
+        order_size = int(min(single_max_order_size, quantity_left))
         num_orders-=1
         quantity_left-=order_size
 
@@ -291,7 +303,6 @@ def main():
             place_order("BANKNIFTY23")
         elif command == "place_FN":
             place_order("FINNIFTY23")
-            place_order()
         elif command == "place_N":
             place_order("NIFTY23")
         elif command == "straddle":
