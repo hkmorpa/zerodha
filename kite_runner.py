@@ -87,6 +87,14 @@ def straddle_order(prefix):
     myprint("------------------------------------------")
     myprint("\n")
 
+def cancel_order():
+    orders = client.orders()
+    order_ids = [order['order_id'] for order in orders if order['status'] == 'OPEN']
+    for order_id in order_ids:
+        client.cancel_order(
+            variety=client.VARIETY_REGULAR,
+            order_id=order_id)
+
 def place_order(prefix):
     buy_order_type, sell_order_type = client.ORDER_TYPE_LIMIT, client.ORDER_TYPE_LIMIT
     expiry = os.getenv("expiry")
@@ -301,6 +309,8 @@ def main():
             close_all_positions(positions, side=side)
         elif command == "place_order":
             place_order("BANKNIFTY23")
+        elif command == "cancel":
+            cancel_order()
         elif command == "place_FN":
             place_order("FINNIFTY23")
         elif command == "place_N":
