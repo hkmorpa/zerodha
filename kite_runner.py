@@ -168,6 +168,98 @@ def place_order(prefix):
     myprint("------------------------------------------")
     myprint("\n")
 
+def volatile_strategy(prefix):
+    buy_order_type, sell_order_type = client.ORDER_TYPE_LIMIT, client.ORDER_TYPE_LIMIT
+
+    expiry = os.getenv("expiry")
+    if expiry == None or expiry == "":
+        myprint("please export contract expiry for BANKNIFTY, exiting!")
+        return 
+    b_instrument = os.getenv("Binstrument")
+    s_instrument = os.getenv("Sinstrument")
+
+    buy_instrument = b_instrument;
+    sell_instrument = s_instrument;
+
+    b_multiplier = 1
+    s_multiplier = 1
+
+    if "*" in b_instrument:
+        buy_instrument,multiplier = b_instrument.split("*")
+        b_multiplier = int(multiplier)
+    if "*" in s_instrument:
+        sell_instrument,multiplier = s_instrument.split("*")
+        s_multiplier = int(multiplier)
+
+    if((buy_instrument == None or buy_instrument == "") and (sell_instrument == None or sell_instrument == "")):
+        myprint("Bothinstrumentis cannot be empty, exiting!")
+        return
+
+    instrument_prefix = prefix+expiry
+
+    buy_limit_price, sell_limit_price = 0.0, 0.0
+
+
+    buy_price = os.getenv("Bprice")
+    sell_price = os.getenv("Sprice")
+
+    if(buy_price == None or buy_price == ""):
+        buy_order_type = client.ORDER_TYPE_MARKET
+        buy_limit_price = 0
+    else:
+        buy_limit_price = float(buy_price.strip())
+
+    if(sell_price == None or sell_price == ""):
+        sell_order_type = client.ORDER_TYPE_MARKET
+        sell_limit_price = 0
+    else:
+        sell_limit_price = float(sell_price.strip())
+        
+    quantity = os.getenv("quantity")
+    if quantity == None or quantity == "":
+        myprint("quantity is required field")
+        return
+
+    size = int(quantity.strip())
+    quantity_left = int(size)
+
+    if "BANK" in instrument_prefix:
+        single_max_order_size = 900
+    else:
+        single_max_order_size = 1800
+
+    num_orders = math.ceil(int(size) / single_max_order_size)
+    while num_orders > 0:
+        order_size = int(min(single_max_order_size, quantity_left))
+        num_orders-=1
+        quantity_left-=order_size
+        i = 0
+        if sell_instrument != "" and sell_instrument != None:
+            while i < s_multiplier:
+                total_orders_count, failed_count = place_order_kite(
+                    instrument=(instrument_prefix+sell_instrument).upper(),
+                    side=client.TRANSACTION_TYPE_SELL,
+                    order_type=sell_order_type,
+                    price=float(sell_limit_price),
+                    size=order_size,
+                )
+                i = i + 1
+                myprint("SELL orders placed: %d, failed: %d" % (total_orders_count, failed_count))
+        
+        if buy_instrument != "" and buy_instrument != None:
+            while i < s_multiplier:
+                total_orders_count, failed_count = place_order_kite(
+                    instrument=(instrument_prefix+buy_instrument).upper(),
+                    side=client.TRANSACTION_TYPE_BUY,
+                    size=order_size,
+                    price=float(buy_limit_price),
+                    order_type=buy_order_type,
+                )
+                i = i + 1
+                myprint("BUY orders placed: %d, failed: %d" % (total_orders_count, failed_count))
+    myprint("------------------------------------------")
+    myprint("\n")
+
 
 def place_order_kite(instrument, side, order_type, price, size):
 
@@ -311,6 +403,8 @@ def main():
             place_order("BANKNIFTY23")
         elif command == "cancel":
             cancel_order()
+        elif command == "volatile":
+            volatile_strategy("BANKNIFTY23")
         elif command == "place_FN":
             place_order("FINNIFTY23")
         elif command == "place_N":
