@@ -95,6 +95,114 @@ def cancel_order():
             variety=client.VARIETY_REGULAR,
             order_id=order_id)
 
+def sell_order(prefix):
+    sell_order_type = client.ORDER_TYPE_LIMIT
+    expiry = os.getenv("expiry")
+    if expiry == None or expiry == "":
+        myprint("please export contract expiry for BANKNIFTY, exiting!")
+        return 
+    sell_instrument = os.getenv("instrument")
+    if((sell_instrument == None or sell_instrument == "")):
+        myprint("sell instrument cannot be empty, exiting!")
+        return
+
+    instrument_prefix = prefix+expiry
+
+    sell_limit_price = 0.0
+
+    sell_price = os.getenv("price")
+
+    if(sell_price == None or sell_price == ""):
+        sell_order_type = client.ORDER_TYPE_MARKET
+        sell_limit_price = 0
+    else:
+        sell_limit_price = float(sell_price.strip())
+        
+    quantity = os.getenv("quantity")
+    if quantity == None or quantity == "":
+        myprint("quantity is required field")
+        return
+
+    size = int(quantity.strip())
+    quantity_left = int(size)
+
+    if "BANK" in instrument_prefix:
+        single_max_order_size = 900
+    else:
+        single_max_order_size = 1800
+
+    num_orders = math.ceil(int(size) / single_max_order_size)
+    while num_orders > 0:
+        order_size = int(min(single_max_order_size, quantity_left))
+        num_orders-=1
+        quantity_left-=order_size
+
+        total_orders_count, failed_count = place_order_kite(
+            instrument=(instrument_prefix+sell_instrument).upper(),
+            side=client.TRANSACTION_TYPE_SELL,
+            order_type=sell_order_type,
+            price=float(sell_limit_price),
+            size=order_size,
+        )
+        myprint("SELL orders placed: %d, failed: %d" % (total_orders_count, failed_count))
+    myprint("------------------------------------------")
+    myprint("\n")
+
+def buy_order(prefix):
+    buy_order_type = client.ORDER_TYPE_LIMIT
+    expiry = os.getenv("expiry")
+    if expiry == None or expiry == "":
+        myprint("please export contract expiry for BANKNIFTY, exiting!")
+        return 
+    buy_instrument = os.getenv("instrument")
+
+    if(buy_instrument == None or buy_instrument == ""):
+        myprint("Buy instrumenti cannot be empty, exiting!")
+        return
+
+    instrument_prefix = prefix+expiry
+
+    buy_limit_price = 0.0
+
+
+    buy_price = os.getenv("price")
+
+    if(buy_price == None or buy_price == ""):
+        buy_order_type = client.ORDER_TYPE_MARKET
+        buy_limit_price = 0
+    else:
+        buy_limit_price = float(buy_price.strip())
+
+    quantity = os.getenv("quantity")
+    if quantity == None or quantity == "":
+        myprint("quantity is required field")
+        return
+
+    size = int(quantity.strip())
+    quantity_left = int(size)
+
+    if "BANK" in instrument_prefix:
+        single_max_order_size = 900
+    else:
+        single_max_order_size = 1800
+
+    num_orders = math.ceil(int(size) / single_max_order_size)
+    while num_orders > 0:
+        order_size = int(min(single_max_order_size, quantity_left))
+        num_orders-=1
+        quantity_left-=order_size
+
+        total_orders_count, failed_count = place_order_kite(
+            instrument=(instrument_prefix+buy_instrument).upper(),
+            side=client.TRANSACTION_TYPE_BUY,
+            size=order_size,
+            price=float(buy_limit_price),
+            order_type=buy_order_type,
+        )
+        myprint("BUY orders placed: %d, failed: %d" % (total_orders_count, failed_count))
+    myprint("------------------------------------------")
+    myprint("\n")
+
 def place_order(prefix):
     buy_order_type, sell_order_type = client.ORDER_TYPE_LIMIT, client.ORDER_TYPE_LIMIT
     expiry = os.getenv("expiry")
@@ -235,7 +343,7 @@ def volatile_strategy(prefix):
         quantity_left-=order_size
         i = 0
         if sell_instrument != "" and sell_instrument != None:
-            while i < s_multiplier:
+            while i <= s_multiplier:
                 total_orders_count, failed_count = place_order_kite(
                     instrument=(instrument_prefix+sell_instrument).upper(),
                     side=client.TRANSACTION_TYPE_SELL,
@@ -247,7 +355,7 @@ def volatile_strategy(prefix):
                 myprint("SELL orders placed: %d, failed: %d" % (total_orders_count, failed_count))
         
         if buy_instrument != "" and buy_instrument != None:
-            while i < s_multiplier:
+            while i <= b_multiplier:
                 total_orders_count, failed_count = place_order_kite(
                     instrument=(instrument_prefix+buy_instrument).upper(),
                     side=client.TRANSACTION_TYPE_BUY,
@@ -399,6 +507,10 @@ def main():
             side = os.getenv("side")
             positions = get_todays_position_info()
             close_all_positions(positions, side=side)
+        elif command == "sell":
+            sell_order("BANKNIFTY23")
+        elif command == "buy":
+            buy_order("BANKNIFTY23")
         elif command == "place_order":
             place_order("BANKNIFTY23")
         elif command == "cancel":
