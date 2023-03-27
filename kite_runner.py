@@ -341,9 +341,9 @@ def volatile_strategy(prefix):
         order_size = int(min(single_max_order_size, quantity_left))
         num_orders-=1
         quantity_left-=order_size
-        i = 0
         if sell_instrument != "" and sell_instrument != None:
-            while i <= s_multiplier:
+            i = 0
+            while i < s_multiplier:
                 total_orders_count, failed_count = place_order_kite(
                     instrument=(instrument_prefix+sell_instrument).upper(),
                     side=client.TRANSACTION_TYPE_SELL,
@@ -355,7 +355,8 @@ def volatile_strategy(prefix):
                 myprint("SELL orders placed: %d, failed: %d" % (total_orders_count, failed_count))
         
         if buy_instrument != "" and buy_instrument != None:
-            while i <= b_multiplier:
+            i = 0
+            while i < b_multiplier:
                 total_orders_count, failed_count = place_order_kite(
                     instrument=(instrument_prefix+buy_instrument).upper(),
                     side=client.TRANSACTION_TYPE_BUY,
@@ -495,7 +496,8 @@ def stop_loss_runner(sl_amount):
         myprint("Net PnL: %f" % net_pnl)
         if net_pnl < sl_amount:
             myprint("Stop limit reached. stop loss amount: %s, net pnl: %s, closing all positions" % (sl_amount, net_pnl))
-            close_all_positions(positions, "")
+            close_all_positions(positions, "sell")
+            close_all_positions(positions, "buy")
         time.sleep(5)
 
 def main():
@@ -506,7 +508,8 @@ def main():
         if command == "close_all":
             side = os.getenv("side")
             positions = get_todays_position_info()
-            close_all_positions(positions, side=side)
+            close_all_positions(positions, side="sell")
+            close_all_positions(positions, side="buy")
         elif command == "sell":
             sell_order("BANKNIFTY23")
         elif command == "buy":
