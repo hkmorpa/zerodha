@@ -412,7 +412,7 @@ def place_order_kite(instrument, side, order_type, price, size):
     return num_orders, failed_count
 
 
-def close_all_positions(positions, side):
+def close_all_positions(positions, side, close_instrument, close_perc):
     open_positions = get_open_positions(positions)
     for p in open_positions:
         if side == "buy" and p['open_size'] < 0:
@@ -427,14 +427,29 @@ def close_all_positions(positions, side):
             continue
         elif side == "CEsell" and ("PE" in p['instrument'] or p['open_size'] > 0):
             continue
+
+        if close_instrument not in p['instrument']:
+            continue
+
         print("######### Closing position in %s" % p["instrument"])
         print(json.dumps(p, indent=4))
         close_side = client.TRANSACTION_TYPE_SELL if p['open_size'] > 0 else client.TRANSACTION_TYPE_BUY
         order_type = client.ORDER_TYPE_MARKET
+        size = 0;
+
+        if p['open_size'] > 0:
+            size = (int(p['open_size'] * close_perc / 100)) // 25
+            size = size * 25
+        else:
+            size = -p['open_size']
+            size = (int(size * close_perc / 100)) // 25
+            size = size * 25
+
         order_count, failed_count = place_order_kite(
             p['instrument'], side = close_side,
             order_type=order_type,
-            price=0.0, size=abs(p['open_size']))
+            price=0.0, size=size)
+
         myprint("%s orders placed to close position. order count: %d, failed: %d" % (close_side, order_count, failed_count))
         
 def pnl(entry_price, exit_price, size, side):
@@ -485,6 +500,26 @@ def get_todays_position_info():
             continue
         positions.append(prepare_position_info(p, ltp_data[trading_symbol]["last_price"])) 
     return positions
+
+def cover_orders():
+
+    instruments = os.getenv("instrument")
+    perc = os.getenv("perc")
+    if not perc:
+        perc = 100
+    else:
+        perc = int(perc)
+
+    if(instruments == None or instruments == ""):
+        myprint("instrument cannot be empty, exiting!")
+        return
+
+    positions = get_todays_position_info()
+    instrument_list = instruments.split(",")
+
+    for instrument in instrument_list:
+        close_all_positions(positions, "sell", instrument, close_perc = perc)
+
     
 def stop_loss_runner(sl_amount):
     while True:
@@ -496,8 +531,8 @@ def stop_loss_runner(sl_amount):
         myprint("Net PnL: %f" % net_pnl)
         if net_pnl < sl_amount:
             myprint("Stop limit reached. stop loss amount: %s, net pnl: %s, closing all positions" % (sl_amount, net_pnl))
-            close_all_positions(positions, "sell")
-            close_all_positions(positions, "buy")
+            close_all_positions(positions, side="sell", close_instrument="", close_perc = 100)
+            close_all_positions(positions, side="buy", close_instrument="", close_perc = 100)
         time.sleep(5)
 
 def main():
@@ -507,9 +542,9 @@ def main():
     if command != None and command != "":
         if command == "close_all":
             side = os.getenv("side")
+            perc = os.getenv("perc")
             positions = get_todays_position_info()
-            close_all_positions(positions, side="sell")
-            close_all_positions(positions, side="buy")
+            close_all_positions(positions, side, close_instrument="", close_perc = int(perc))
         elif command == "sell":
             sell_order("BANKNIFTY23")
         elif command == "buy":
@@ -530,6 +565,8 @@ def main():
             straddle_order("FINNIFTY23")
         elif command == "straddle_N":
             straddle_order("NIFTY23")
+        elif command == "cover":
+            cover_orders()
         elif command == "sl_runner":
             sl_amount = os.getenv("sl_amount")
             if sl_amount != None and sl_amount != "":
