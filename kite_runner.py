@@ -431,6 +431,10 @@ def close_all_positions(positions, side, close_instrument, close_perc):
         if close_instrument not in p['instrument']:
             continue
 
+        if "NIFTY" not in  p['instrument']:
+            print("NIFTY not in %s" % p['instrument'])
+            continue
+
         print("######### Closing position in %s" % p["instrument"])
         print(json.dumps(p, indent=4))
         close_side = client.TRANSACTION_TYPE_SELL if p['open_size'] > 0 else client.TRANSACTION_TYPE_BUY
@@ -522,6 +526,7 @@ def cover_orders():
 
     
 def stop_loss_runner(sl_amount):
+    sl_count = 0
     while True:
         positions = get_todays_position_info()
         net_pnl = sum(map(
@@ -530,9 +535,16 @@ def stop_loss_runner(sl_amount):
         
         myprint("Net PnL: %f" % net_pnl)
         if net_pnl < sl_amount:
-            myprint("Stop limit reached. stop loss amount: %s, net pnl: %s, closing all positions" % (sl_amount, net_pnl))
-            close_all_positions(positions, side="sell", close_instrument="", close_perc = 100)
-            close_all_positions(positions, side="buy", close_instrument="", close_perc = 100)
+            sl_count = sl_count + 1;
+            if sl_count > 2:
+                myprint("Stop limit reached. stop loss amount: %s, net pnl: %s, closing all positions" % (sl_amount, net_pnl))
+                close_all_positions(positions, side="sell", close_instrument="", close_perc = 100)
+                close_all_positions(positions, side="buy", close_instrument="", close_perc = 100)
+        else:
+            sl_count = 0
+
+        print("SL count is %d" % sl_count)
+
         time.sleep(5)
 
 def main():
