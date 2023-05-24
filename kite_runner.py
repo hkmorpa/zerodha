@@ -555,8 +555,16 @@ def main():
         if command == "close_all":
             side = os.getenv("side")
             perc = os.getenv("perc")
+            if perc is None or perc == "":
+                perc = 100
+
             positions = get_todays_position_info()
-            close_all_positions(positions, side, close_instrument="", close_perc = int(perc))
+            if side is None or side == "":
+                close_all_positions(positions, side="sell", close_instrument="", close_perc = int(perc))
+                close_all_positions(positions, side="buy", close_instrument="", close_perc = int(perc))
+            else:
+                close_all_positions(positions, side, close_instrument="", close_perc = int(perc))
+
         elif command == "sell":
             sell_order("BANKNIFTY23")
         elif command == "buy":
