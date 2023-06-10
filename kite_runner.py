@@ -570,10 +570,22 @@ def main():
 
         elif command == "sell":
             sell_order("BANKNIFTY23")
+        elif command == "sell_N":
+            sell_order("NIFTY23")
+        elif command == "sell_FN":
+            sell_order("FINNIFTY23")
         elif command == "buy":
             buy_order("BANKNIFTY23")
+        elif command == "buy_N":
+            buy_order("NIFTY23")
+        elif command == "buy_FN":
+            buy_order("FINNIFTY23")
         elif command == "place_order":
             place_order("BANKNIFTY23")
+        elif command == "place_N":
+            place_order("NIFTY23")
+        elif command == "place_FN":
+            place_order("FINNIFTY23")
         elif command == "cancel":
             cancel_order()
         elif command == "volatile":
@@ -582,16 +594,12 @@ def main():
             volatile_strategy("NIFTY23")
         elif command == "volatile_FN":
             volatile_strategy("FINNIFTY23")
-        elif command == "place_FN":
-            place_order("FINNIFTY23")
-        elif command == "place_N":
-            place_order("NIFTY23")
         elif command == "straddle":
             straddle_order("BANKNIFTY23")
-        elif command == "straddle_FN":
-            straddle_order("FINNIFTY23")
         elif command == "straddle_N":
             straddle_order("NIFTY23")
+        elif command == "straddle_FN":
+            straddle_order("FINNIFTY23")
         elif command == "cover":
             cover_orders()
         elif command == "sl_runner":
