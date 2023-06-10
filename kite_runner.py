@@ -498,6 +498,9 @@ def get_todays_position_info():
     
     ltp_data = client.ltp(list(map(lambda i: "NFO:"+i['tradingsymbol'], positions_data["net"])))
     for p in positions_data["net"]:
+        #We need to consider only NIFTY contracts
+        if "NIFTY" not in p["tradingsymbol"]:
+            continue
         trading_symbol = "NFO:"+p["tradingsymbol"]
         if  trading_symbol not in ltp_data and p["quantity"] != 0:
             print("failed to get ltp for %s, will fail to calculate unrealised pnl" % p["tradingsymbol"])
@@ -575,6 +578,10 @@ def main():
             cancel_order()
         elif command == "volatile":
             volatile_strategy("BANKNIFTY23")
+        elif command == "volatile_N":
+            volatile_strategy("NIFTY23")
+        elif command == "volatile_FN":
+            volatile_strategy("FINNIFTY23")
         elif command == "place_FN":
             place_order("FINNIFTY23")
         elif command == "place_N":
