@@ -414,47 +414,56 @@ def place_order_kite(instrument, side, order_type, price, size):
 
 def close_all_positions(positions, side, close_instrument, close_perc):
     open_positions = get_open_positions(positions)
-    for p in open_positions:
-        if side == "buy" and p['open_size'] < 0:
-            continue
-        elif side == "sell" and p['open_size'] > 0:
-            continue
-        elif side == "PE" and "CE" in p['instrument']:
-            continue
-        elif side == "CE" and "PE" in p['instrument']:
-            continue
-        elif side == "PEsell" and ("CE" in p['instrument'] or p['open_size'] > 0):
-            continue
-        elif side == "CEsell" and ("PE" in p['instrument'] or p['open_size'] > 0):
-            continue
+    iteration = 0
+    #iteration 0 means we need to close only sell positions 
+    #iteration 1 means we need to close only buy positions 
+    while iteration < 2:
+        for p in open_positions:
+            if iteration == 0 and p['open_size'] > 0: #we will close in next iteration
+                continue
+            if iteration == 1 and p['open_size'] < 0: #we already closed in first iteration
+                continue
+            if side == "buy" and p['open_size'] < 0:
+                continue
+            elif side == "sell" and p['open_size'] > 0:
+                continue
+            elif side == "PE" and "CE" in p['instrument']:
+                continue
+            elif side == "CE" and "PE" in p['instrument']:
+                continue
+            elif side == "PEsell" and ("CE" in p['instrument'] or p['open_size'] > 0):
+                continue
+            elif side == "CEsell" and ("PE" in p['instrument'] or p['open_size'] > 0):
+                continue
+    
+            if close_instrument not in p['instrument']:
+                continue
+    
+            if "NIFTY" not in  p['instrument']:
+                print("NIFTY not in %s" % p['instrument'])
+                continue
 
-        if close_instrument not in p['instrument']:
-            continue
+            print("######### Closing position in %s" % p["instrument"])
+            print(json.dumps(p, indent=4))
+            close_side = client.TRANSACTION_TYPE_SELL if p['open_size'] > 0 else client.TRANSACTION_TYPE_BUY
+            order_type = client.ORDER_TYPE_MARKET
+            size = 0;
 
-        if "NIFTY" not in  p['instrument']:
-            print("NIFTY not in %s" % p['instrument'])
-            continue
+            if p['open_size'] > 0:
+                size = (int(p['open_size'] * close_perc / 100)) // 25
+                size = size * 25
+            else:
+                size = -p['open_size']
+                size = (int(size * close_perc / 100)) // 25
+                size = size * 25
 
-        print("######### Closing position in %s" % p["instrument"])
-        print(json.dumps(p, indent=4))
-        close_side = client.TRANSACTION_TYPE_SELL if p['open_size'] > 0 else client.TRANSACTION_TYPE_BUY
-        order_type = client.ORDER_TYPE_MARKET
-        size = 0;
+            order_count, failed_count = place_order_kite(
+                p['instrument'], side = close_side,
+                order_type=order_type,
+                price=0.0, size=size)
 
-        if p['open_size'] > 0:
-            size = (int(p['open_size'] * close_perc / 100)) // 25
-            size = size * 25
-        else:
-            size = -p['open_size']
-            size = (int(size * close_perc / 100)) // 25
-            size = size * 25
-
-        order_count, failed_count = place_order_kite(
-            p['instrument'], side = close_side,
-            order_type=order_type,
-            price=0.0, size=size)
-
-        myprint("%s orders placed to close position. order count: %d, failed: %d" % (close_side, order_count, failed_count))
+            myprint("%s orders placed to close position. order count: %d, failed: %d" % (close_side, order_count, failed_count))
+        iteration = iteration + 1
         
 def pnl(entry_price, exit_price, size, side):
     if side == "buy":
