@@ -539,11 +539,31 @@ def cover_orders():
     
 def stop_loss_runner(sl_amount):
     sl_count = 0
+    instruments = os.getenv("instrument")
+    instrument_list = []
+    if instruments:
+        instrument_list = instruments.split(",")
     while True:
         positions = get_todays_position_info()
-        net_pnl = sum(map(
-            lambda p: p["upl"]+p["rpl"], positions
-        ))
+        i = 0
+        net_pnl = 0
+        #check if we need to calculate net_pnl for selected instruments only
+        while i < len(positions): 
+           calculate = 0 
+           if instrument_list:
+               for inst in instrument_list:
+                   print (inst, positions[i]["instrument"])
+                   if inst in positions[i]["instrument"]:
+                       calculate = 1
+                       break
+           else: 
+               calculate = 1
+           if calculate == 1: 
+                net_pnl += positions[i]["upl"] + positions[i]["rpl"]
+           i += 1
+        #net_pnl = sum(map(
+            #lambda p: p["upl"]+p["rpl"], positions
+        #))
         
         myprint("Net PnL: %f" % net_pnl)
         if net_pnl < sl_amount:
