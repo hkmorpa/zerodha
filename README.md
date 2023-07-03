@@ -29,8 +29,8 @@ command=sell price=23 quantity=3600 instrument=43500CE  python3 kite_runner.py
 
 
 # SL runner: this script will run every 10 seconds, PRESS CTRL + C to stop script
-command=sl_runner sl_amount=-2000 python3 kite_runner.py
-
+ command=sl_runner sl_amount=-1000000 instrument=44800,45900 python3 kite_runner.py
+ 
 # Cover few sell orders
 command=cover instrument=41000,42500 perc=1 python3 kite_runner_test.py
 
