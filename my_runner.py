@@ -420,7 +420,7 @@ def cover_orders():
     if not perc:
         perc = 100
     else:
-        perc = int(perc)
+        perc = float(perc)
 
     if(instruments == None or instruments == ""):
         myprint("instrument cannot be empty, exiting!")
@@ -463,7 +463,7 @@ def stop_loss_runner(sl_amount):
         myprint("Net PnL: %f" % net_pnl)
         if net_pnl < sl_amount:
             sl_count = sl_count + 1;
-            if sl_count > 2:
+            if sl_count > 1:
                 myprint("Stop limit reached. stop loss amount: %s, net pnl: %s, closing all positions" % (sl_amount, net_pnl))
                 if instruments: #If SL is run for particular instruments then close only those
                     for instrument in instrument_list:
@@ -492,10 +492,10 @@ def main():
 
             positions = get_todays_position_info()
             if side is None or side == "":
-                close_all_positions(positions, side="sell", close_instrument="", close_perc = int(perc))
-                close_all_positions(positions, side="buy", close_instrument="", close_perc = int(perc))
+                close_all_positions(positions, side="sell", close_instrument="", close_perc = float(perc))
+                close_all_positions(positions, side="buy", close_instrument="", close_perc = float(perc))
             else:
-                close_all_positions(positions, side, close_instrument="", close_perc = int(perc))
+                close_all_positions(positions, side, close_instrument="", close_perc = float(perc))
 
         elif command == "sell":
             sell_order("BANKNIFTY23")
